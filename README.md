@@ -2,7 +2,7 @@
 
 A Spicetify extension that automatically searches osu! beatmaps for the song currently playing in Spotify.
 
-> Built by [Shinra Tensei](https://github.com/shinratenseihc) with a lot of vibecoding. This is a personal project — contributions are welcome but please don't fork it into a separate project.
+> Built by [Shinra Tensei](https://github.com/shinratenseihc) with a lot of vibecoding. Contributions welcome — keep improvements centralized here via PRs.
 
 ---
 
@@ -90,7 +90,7 @@ spicetify apply
 
 ### 6. Start the backend
 
-The backend needs to run in the background for the extension to work. It's set up to auto-start with Windows via `start-backend.vbs`.
+The backend needs to run in the background for the extension to work. It auto-starts with Windows via `start-backend.vbs`.
 
 To test it manually:
 
@@ -124,10 +124,10 @@ spicetify-osu/
 
 ## Contributing
 
-Issues and pull requests are welcome. Please contribute to this repo directly rather than forking it into a separate project — the goal is to keep improvements centralized here.
+Issues and pull requests are welcome. If you fork this project, any modifications must remain open source under the same GPL v3 license — meaning improvements come back to the community.
 
 ---
 
 ## License
 
-See [LICENSE](./LICENSE). Personal use only, no forks as separate projects.
+[GPL v3](./LICENSE) — use it, modify it, but keep it open source.
