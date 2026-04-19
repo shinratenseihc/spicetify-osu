@@ -4,6 +4,8 @@ A Spicetify extension that automatically searches osu! beatmaps for the song cur
 
 > Built by [Shinra Tensei](https://github.com/shinratenseihc) with a lot of vibecoding. Contributions welcome — keep improvements centralized here via PRs.
 
+![Preview](./preview.png)
+
 ---
 
 ## What it does
@@ -13,16 +15,6 @@ A Spicetify extension that automatically searches osu! beatmaps for the song cur
 - Shows a popup with two tabs: **Track** (direct matches) and **Artist** (all maps from that artist)
 - Displays difficulty badges, play count, and favourites for each beatmap
 - One click opens the beatmap directly in **osu!lazer** via `osu://` deep link
-
-## Preview
-
-The osu! button appears in the Spotify player bar when a matching beatmap is found:
-
-```
-[Spotify player bar] ... ⊙ osu!
-```
-
-Click it to open the popup.
 
 ---
 
@@ -56,8 +48,6 @@ cd spicetify-osu
 
 ### 3. Configure your credentials
 
-Copy the example config and fill in your credentials:
-
 ```bash
 copy config.example.json config.json
 ```
@@ -90,9 +80,9 @@ spicetify apply
 
 ### 6. Start the backend
 
-The backend needs to run in the background for the extension to work. It auto-starts with Windows via `start-backend.vbs`.
+The backend needs to run in the background. It auto-starts with Windows via `start-backend.vbs` (already configured).
 
-To test it manually:
+To run it manually:
 
 ```bash
 python backend.py
@@ -102,7 +92,35 @@ python backend.py
 
 ## How it works
 
-Spotify extensions can't make direct HTTP requests to external APIs due to CORS restrictions. This project uses a small local Python backend (`backend.py`) as a proxy that handles osu! API authentication and forwards search requests. The Spicetify extension communicates with this backend on `http://localhost:7270`.
+Spotify extensions can't call external APIs directly (CORS restrictions). This project uses a small local Python backend (`backend.py`) as a proxy — it handles osu! OAuth and forwards search requests. The Spicetify extension talks to it on `http://localhost:7270`.
+
+---
+
+## Architecture
+
+The frontend is split into focused modules. Each file has one job:
+
+```
+src/
+  main.ts           # Entry point only: init, wait for DOM, listen for track changes
+  store.ts          # Shared state (current track, search results, loading flag)
+  osuApi.ts         # All HTTP calls to the local backend
+  player-button.ts  # The osu! button in the Spotify player bar
+  popup.ts          # The beatmap popup: tabs, header, open/close lifecycle
+  renderer.ts       # Pure rendering: difficulty badges, stats, beatmap rows
+```
+
+**Where to look depending on what you want to change:**
+
+| Goal | File |
+|---|---|
+| Change how maps are fetched / matched | `main.ts` |
+| Add a new field to the API response | `osuApi.ts` |
+| Change the popup layout or tabs | `popup.ts` |
+| Change how difficulty badges look | `renderer.ts` |
+| Change the player bar button | `player-button.ts` |
+| Add new shared state | `store.ts` |
+| Change the backend proxy / API auth | `backend.py` |
 
 ---
 
@@ -110,14 +128,20 @@ Spotify extensions can't make direct HTTP requests to external APIs due to CORS 
 
 ```
 spicetify-osu/
-├── src/
-│   ├── main.tsx        # Spicetify extension entry point
-│   └── osuApi.ts       # API calls to local backend
-├── backend.py          # Local Python proxy server
-├── config.json         # Your osu! credentials (not committed)
-├── config.example.json # Example config file
-├── start-backend.vbs   # Silent Windows autostart script
-└── gulpfile.ts         # Build system
+├── src/                    # TypeScript source (compiled to dist/)
+│   ├── main.ts             # Entry point
+│   ├── store.ts            # Shared state
+│   ├── osuApi.ts           # API calls
+│   ├── player-button.ts    # Player bar button
+│   ├── popup.ts            # Search popup
+│   └── renderer.ts         # UI rendering
+├── types/                  # Spicetify type declarations
+├── backend.py              # Local Python proxy server
+├── config.json             # Your osu! credentials (not committed)
+├── config.example.json     # Example config
+├── start-backend.vbs       # Silent Windows autostart script
+├── gulpfile.ts             # Build system
+└── dist/                   # Compiled output (not committed)
 ```
 
 ---
