@@ -1,3 +1,3 @@
-' Lance le backend spicetify-osu en arriere-plan sans console
+' Lance le watcher spicetify-osu en arriere-plan (sans fenetre PowerShell visible)
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "pythonw """ & CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\backend.py""", 0, False
+WshShell.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File """ & CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\spicetify-osu-watch.ps1""", 0, False
