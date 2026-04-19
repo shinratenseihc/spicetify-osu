@@ -4,6 +4,7 @@ A Spicetify extension that automatically searches osu! beatmaps for the song cur
 
 > Built by [Shinra Tensei](https://github.com/shinratenseihc) with a lot of vibecoding. Contributions welcome — keep improvements centralized here via PRs.
 
+![Logo](https://github.com/shinratenseihc/spicetify-osu/blob/main/preview.png)
 ![Preview](https://github.com/shinratenseihc/spicetify-osu/blob/main/preview%20osu%20spicetify.png)
 
 ---
