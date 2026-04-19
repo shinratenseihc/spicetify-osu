@@ -1,0 +1,13 @@
+{
+  "BundleIdentifier": "spicetify-osu",
+  "BundleType": "CustomApp",
+  "BundleVersion": "1.0.0",
+  "name": "osu! Search",
+  "icon": "<svg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'><circle cx='64' cy='64' r='56' fill='none' stroke='currentColor' stroke-width='12'/><circle cx='64' cy='64' r='24' fill='currentColor'/></svg>",
+  "active-icon": "<svg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'><circle cx='64' cy='64' r='56' fill='none' stroke='currentColor' stroke-width='12'/><circle cx='64' cy='64' r='24' fill='currentColor'/></svg>",
+  "SupportedDeviceClasses": ["Desktop"],
+  "SkipLanguageValidation": true,
+  "SkipUnrequireValidation": true,
+  "SpmApp": true,
+  "assets": ["manifest.json", "spicetify-osu.js", "spicetify-osu.css"]
+}
