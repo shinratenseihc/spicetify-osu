@@ -21,7 +21,7 @@ const SPICETIFY_EXT = "C:/Users/badlx/AppData/Roaming/spicetify/Extensions"
 
 function js(debug?: boolean) {
 	return gulp
-		.src("src/main.tsx")
+		.src("src/main.ts")
 		.pipe(bro({
 			debug,
 			plugin: [[tsifyBabelify, { debug }]],
