@@ -1,16 +1,13 @@
-[
-  {
-    "name": "spicetify-osu",
-    "description": "A Spicetify extension that automatically searches osu! beatmaps for the song currently playing in Spotify.",
-    "preview": "preview.png",
-    "main": "dist/spicetify-osu.js",
-    "readme": "README.md",
-    "authors": [
-      {
-        "name": "shinratenseihc",
-        "url": "https://github.com/shinratenseihc"
-      }
-    ],
-    "tags": ["osu!", "beatmaps", "spotify", "spicetify"]
-  }
-]
+{
+  "name": "spicetify-osu",
+  "description": "A Spicetify custom app that helps find osu! beatmaps for the song currently playing on Spotify.",
+  "preview": "preview.png",
+  "readme": "README.md",
+  "authors": [
+    {
+      "name": "shinratenseihc",
+      "url": "https://github.com/shinratenseihc"
+    }
+  ],
+  "tags": ["osu!", "beatmaps", "spotify", "spicetify"]
+}
