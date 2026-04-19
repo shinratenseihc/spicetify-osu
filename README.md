@@ -2,7 +2,7 @@
 
 A Spicetify extension that automatically searches osu! beatmaps for the song currently playing in Spotify.
 
-> Built by [Shinra Tensei](https://github.com/shinratenseihc) with a lot of vibecoding and zero regrets.
+> Built by [Shinra Tensei](https://github.com/shinratenseihc) with a lot of vibecoding. This is a personal project — contributions are welcome but please don't fork it into a separate project.
 
 ---
 
@@ -59,7 +59,7 @@ cd spicetify-osu
 Copy the example config and fill in your credentials:
 
 ```bash
-cp config.example.json config.json
+copy config.example.json config.json
 ```
 
 Edit `config.json`:
@@ -88,11 +88,11 @@ spicetify config extensions spicetify-osu.js
 spicetify apply
 ```
 
-### 6. Set up the backend to auto-start with Windows
+### 6. Start the backend
 
-Double-click `start-backend.vbs` once to test it, then it will auto-launch on every Windows startup (already configured via the Startup folder shortcut).
+The backend needs to run in the background for the extension to work. It's set up to auto-start with Windows via `start-backend.vbs`.
 
-Or launch it manually anytime:
+To test it manually:
 
 ```bash
 python backend.py
@@ -102,7 +102,7 @@ python backend.py
 
 ## How it works
 
-Spotify extensions can't make direct HTTP requests to external APIs due to CORS restrictions. This project uses a small local Python backend (`backend.py`) as a proxy that handles osu! API authentication and forwards search requests. The Spicetify extension communicates with this local backend on `http://localhost:7270`.
+Spotify extensions can't make direct HTTP requests to external APIs due to CORS restrictions. This project uses a small local Python backend (`backend.py`) as a proxy that handles osu! API authentication and forwards search requests. The Spicetify extension communicates with this backend on `http://localhost:7270`.
 
 ---
 
@@ -122,6 +122,12 @@ spicetify-osu/
 
 ---
 
+## Contributing
+
+Issues and pull requests are welcome. Please contribute to this repo directly rather than forking it into a separate project — the goal is to keep improvements centralized here.
+
+---
+
 ## License
 
-MIT — do whatever you want with it.
+See [LICENSE](./LICENSE). Personal use only, no forks as separate projects.
