@@ -1,7 +1,10 @@
 /**
  * tracklist-watcher.ts
- * Watches Spotify tracklist pages and injects a small osu! badge
- * next to tracks that have a matching beatmap.
+ * Injects a small osu! badge after the track title in Spotify tracklists.
+ * Selector confirmed via DOM inspection (Spotify xpui, April 2026):
+ *   Row:   .main-trackList-trackListRow
+ *   Title: .main-trackList-rowMainContent .encore-text-body-medium
+ *   Artist: first .encore-text-body-small a inside the row
  */
 import { searchBeatmapsets } from "./osuApi"
 
@@ -16,8 +19,16 @@ function createBadge(): HTMLElement {
 	const badge = document.createElement("span")
 	badge.className = "osu-tracklist-badge"
 	badge.title = "Beatmap available on osu!"
-	badge.style.cssText = "display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;width:16px;height:16px;flex-shrink:0;opacity:0.75;"
-	badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 128 128" fill="currentColor"><circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/><circle cx="64" cy="64" r="20" fill="currentColor"/></svg>`
+	badge.style.cssText = [
+		"display:inline-flex",
+		"align-items:center",
+		"margin-left:5px",
+		"vertical-align:middle",
+		"opacity:0.7",
+		"position:relative",
+		"top:-1px",
+	].join(";")
+	badge.innerHTML = `<svg width="13" height="13" viewBox="0 0 128 128" fill="currentColor"><circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/><circle cx="64" cy="64" r="20" fill="currentColor"/></svg>`
 	return badge
 }
 
@@ -26,7 +37,7 @@ function injectBadge(titleEl: HTMLElement) {
 	titleEl.appendChild(createBadge())
 }
 
-// ─── Queue processor (throttled) ─────────────────────────────────────────────
+// ─── Queue processor ──────────────────────────────────────────────────────────
 
 async function processQueue() {
 	if (isProcessing || pendingQueue.length === 0) return
@@ -63,36 +74,26 @@ async function processQueue() {
 }
 
 // ─── Row scanner ──────────────────────────────────────────────────────────────
-// Sélecteurs confirmés via inspection DOM Spotify xpui (Avril 2026)
-// Row class: .main-trackList-trackListRow
-// Titre: premier span avec classe encore-text-body-medium dans la row
-// Artiste: span avec standalone-ellipsis-one-line + encore-text-body-small
-
-function getTitleAndArtist(row: Element): { titleEl: HTMLElement | null; title: string; artist: string } {
-	// Le titre est dans le premier span encore-text-body-medium de la row
-	const titleEl = row.querySelector<HTMLElement>(
-		".encore-text-body-medium:not(.encore-internal-color-text-subdued)"
-	)
-
-	// L'artiste est dans un span standalone-ellipsis-one-line encore-text-body-small
-	const artistEl = row.querySelector<HTMLElement>(
-		".main-trackList-rowSectionEnd .encore-text-body-small.standalone-ellipsis-one-line, " +
-		".encore-text-body-small.standalone-ellipsis-one-line"
-	)
-
-	return {
-		titleEl,
-		title: titleEl?.textContent?.trim() ?? "",
-		artist: artistEl?.textContent?.trim() ?? "",
-	}
-}
 
 function scanRow(row: Element) {
 	if (row.getAttribute(OSU_BADGE_ATTR)) return
 	row.setAttribute(OSU_BADGE_ATTR, "1")
 
-	const { titleEl, title, artist } = getTitleAndArtist(row)
-	if (!titleEl || !title) return
+	// Title span: confirmed selector for Spotify xpui (April 2026)
+	const titleEl = row.querySelector<HTMLElement>(
+		".main-trackList-rowMainContent .encore-text-body-medium"
+	)
+	if (!titleEl) return
+
+	// Artist: first link inside the row that's not the title container
+	const artistEl = row.querySelector<HTMLElement>(
+		".main-trackList-rowSectionEnd a, " +
+		".encore-text-body-small a"
+	)
+
+	const title = titleEl.textContent?.trim() ?? ""
+	const artist = artistEl?.textContent?.trim() ?? ""
+	if (!title) return
 
 	const cacheKey = `${artist}|${title}`.toLowerCase()
 
@@ -108,12 +109,12 @@ function scanRow(row: Element) {
 // ─── MutationObserver ─────────────────────────────────────────────────────────
 
 const ROW_SELECTOR = ".main-trackList-trackListRow"
-
 let observer: MutationObserver | null = null
 
 export function startTracklistWatcher() {
 	if (observer) return
 
+	// Initial scan — delay to let Spotify render
 	setTimeout(function() {
 		document.querySelectorAll(ROW_SELECTOR).forEach(scanRow)
 	}, 2000)

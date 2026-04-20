@@ -558,8 +558,11 @@ Object.defineProperty(exports, "__esModule", {
 exports.stopTracklistWatcher = exports.startTracklistWatcher = void 0;
 /**
  * tracklist-watcher.ts
- * Watches Spotify tracklist pages and injects a small osu! badge
- * next to tracks that have a matching beatmap.
+ * Injects a small osu! badge after the track title in Spotify tracklists.
+ * Selector confirmed via DOM inspection (Spotify xpui, April 2026):
+ *   Row:   .main-trackList-trackListRow
+ *   Title: .main-trackList-rowMainContent .encore-text-body-medium
+ *   Artist: first .encore-text-body-small a inside the row
  */
 const osuApi_1 = require("./osuApi");
 const OSU_BADGE_ATTR = "data-osu-checked";
@@ -571,15 +574,15 @@ function createBadge() {
   const badge = document.createElement("span");
   badge.className = "osu-tracklist-badge";
   badge.title = "Beatmap available on osu!";
-  badge.style.cssText = "display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;width:16px;height:16px;flex-shrink:0;opacity:0.75;";
-  badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 128 128" fill="currentColor"><circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/><circle cx="64" cy="64" r="20" fill="currentColor"/></svg>`;
+  badge.style.cssText = ["display:inline-flex", "align-items:center", "margin-left:5px", "vertical-align:middle", "opacity:0.7", "position:relative", "top:-1px"].join(";");
+  badge.innerHTML = `<svg width="13" height="13" viewBox="0 0 128 128" fill="currentColor"><circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/><circle cx="64" cy="64" r="20" fill="currentColor"/></svg>`;
   return badge;
 }
 function injectBadge(titleEl) {
   if (titleEl.querySelector(".osu-tracklist-badge")) return;
   titleEl.appendChild(createBadge());
 }
-// ─── Queue processor (throttled) ─────────────────────────────────────────────
+// ─── Queue processor ──────────────────────────────────────────────────────────
 function processQueue() {
   return __awaiter(this, void 0, void 0, function* () {
     if (isProcessing || pendingQueue.length === 0) return;
@@ -610,31 +613,18 @@ function processQueue() {
   });
 }
 // ─── Row scanner ──────────────────────────────────────────────────────────────
-// Sélecteurs confirmés via inspection DOM Spotify xpui (Avril 2026)
-// Row class: .main-trackList-trackListRow
-// Titre: premier span avec classe encore-text-body-medium dans la row
-// Artiste: span avec standalone-ellipsis-one-line + encore-text-body-small
-function getTitleAndArtist(row) {
-  var _a, _b, _c, _d;
-  // Le titre est dans le premier span encore-text-body-medium de la row
-  const titleEl = row.querySelector(".encore-text-body-medium:not(.encore-internal-color-text-subdued)");
-  // L'artiste est dans un span standalone-ellipsis-one-line encore-text-body-small
-  const artistEl = row.querySelector(".main-trackList-rowSectionEnd .encore-text-body-small.standalone-ellipsis-one-line, " + ".encore-text-body-small.standalone-ellipsis-one-line");
-  return {
-    titleEl,
-    title: (_b = (_a = titleEl === null || titleEl === void 0 ? void 0 : titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "",
-    artist: (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : ""
-  };
-}
 function scanRow(row) {
+  var _a, _b, _c, _d;
   if (row.getAttribute(OSU_BADGE_ATTR)) return;
   row.setAttribute(OSU_BADGE_ATTR, "1");
-  const {
-    titleEl,
-    title,
-    artist
-  } = getTitleAndArtist(row);
-  if (!titleEl || !title) return;
+  // Title span: confirmed selector for Spotify xpui (April 2026)
+  const titleEl = row.querySelector(".main-trackList-rowMainContent .encore-text-body-medium");
+  if (!titleEl) return;
+  // Artist: first link inside the row that's not the title container
+  const artistEl = row.querySelector(".main-trackList-rowSectionEnd a, " + ".encore-text-body-small a");
+  const title = (_b = (_a = titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "";
+  const artist = (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : "";
+  if (!title) return;
   const cacheKey = `${artist}|${title}`.toLowerCase();
   if (resultCache.has(cacheKey)) {
     if (resultCache.get(cacheKey)) injectBadge(titleEl);
@@ -653,6 +643,7 @@ const ROW_SELECTOR = ".main-trackList-trackListRow";
 let observer = null;
 function startTracklistWatcher() {
   if (observer) return;
+  // Initial scan — delay to let Spotify render
   setTimeout(function () {
     document.querySelectorAll(ROW_SELECTOR).forEach(scanRow);
   }, 2000);
