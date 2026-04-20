@@ -360,14 +360,16 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.renderMapsInto = exports.renderBeatmapRow = exports.renderDiffBadges = exports.fmtNum = void 0;
 const osuApi_1 = require("./osuApi");
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── osu! color palette ───────────────────────────────────────────────────────
+// Matches the official osu! difficulty color scheme
+const OSU_PINK = "#FF66AA";
 function diffColor(stars) {
-  if (stars < 2) return "#4fc3f7";
-  if (stars < 3) return "#66bb6a";
-  if (stars < 4) return "#ffa726";
-  if (stars < 5) return "#ef5350";
-  if (stars < 6.5) return "#ab47bc";
-  return "#1a1a1a";
+  if (stars < 2) return "#88CCFF"; // Easy    - light blue
+  if (stars < 3) return "#88DD88"; // Normal  - green
+  if (stars < 4) return "#FFCC22"; // Hard    - yellow
+  if (stars < 5) return "#FF6655"; // Insane  - red/orange
+  if (stars < 6.5) return "#AA44FF"; // Expert  - purple
+  return "#000000"; // Expert+ - black
 }
 function fmtNum(n) {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -380,57 +382,63 @@ function fmtTime(seconds) {
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
-// ─── Difficulty tooltip panel ─────────────────────────────────────────────────
+// ─── Difficulty tooltip ───────────────────────────────────────────────────────
 function buildDiffTooltip(diff) {
   const totalNotes = (diff.count_circles || 0) + (diff.count_sliders || 0);
   const nps = diff.hit_length > 0 ? (totalNotes / diff.hit_length).toFixed(2) : "?";
   const panel = document.createElement("div");
   panel.style.cssText = `
-		display:none;position:absolute;z-index:10000;
-		background:var(--spice-main);border:1px solid rgba(255,255,255,0.15);
-		border-radius:8px;padding:10px 12px;min-width:180px;
-		box-shadow:0 4px 16px rgba(0,0,0,0.5);font-size:11px;
-		color:var(--spice-subtext);line-height:1.7;
+		display:none;position:absolute;z-index:10000;bottom:28px;left:0;
+		background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);
+		border-radius:8px;padding:10px 12px;min-width:185px;
+		box-shadow:0 4px 16px rgba(0,0,0,0.6);font-size:11px;
+		color:#ccc;line-height:1.8;white-space:nowrap;
 	`;
   panel.innerHTML = `
-		<div style="font-weight:700;color:var(--spice-text);margin-bottom:6px;">${diff.version}</div>
-		<div>⭐ <b>${diff.difficulty_rating.toFixed(2)}</b> stars</div>
-		<div>🎵 <b>${nps}</b> NPS</div>
-		<div>⏱ <b>${fmtTime(diff.hit_length)}</b> drain / <b>${fmtTime(diff.total_length)}</b> total</div>
-		<div>○ <b>${diff.count_circles}</b> circles &nbsp; ◇ <b>${diff.count_sliders}</b> sliders</div>
-		<div style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.08);padding-top:4px;">
-			AR <b>${diff.ar}</b> &nbsp; CS <b>${diff.cs}</b> &nbsp; OD <b>${diff.accuracy}</b> &nbsp; HP <b>${diff.drain}</b>
+		<div style="font-weight:700;color:#fff;margin-bottom:5px;">${diff.version}</div>
+		<div>⭐ <b style="color:#fff">${diff.difficulty_rating.toFixed(2)}</b> stars &nbsp; 🎵 <b style="color:#fff">${nps}</b> NPS</div>
+		<div>⏱ <b style="color:#fff">${fmtTime(diff.hit_length)}</b> drain &nbsp; / &nbsp; <b style="color:#fff">${fmtTime(diff.total_length)}</b> total</div>
+		<div>○ <b style="color:#fff">${diff.count_circles}</b> circles &nbsp; ◇ <b style="color:#fff">${diff.count_sliders}</b> sliders</div>
+		<div style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.1);padding-top:4px;color:#999;">
+			AR <b style="color:#fff">${diff.ar}</b> &nbsp; CS <b style="color:#fff">${diff.cs}</b> &nbsp; OD <b style="color:#fff">${diff.accuracy}</b> &nbsp; HP <b style="color:#fff">${diff.drain}</b>
 		</div>
 	`;
   return panel;
 }
-// ─── Difficulty badges with hover tooltip ────────────────────────────────────
+// ─── Difficulty badges (style osu! website) ──────────────────────────────────
+// Affiche le nom de la difficulté avec la couleur correspondante
 function renderDiffBadges(beatmaps) {
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;position:relative;";
+  wrapper.style.cssText = "display:flex;flex-wrap:wrap;gap:3px;margin-top:5px;position:relative;";
   if (!beatmaps || beatmaps.length === 0) return wrapper;
-  const sorted = [...beatmaps].sort((a, b) => a.difficulty_rating - b.difficulty_rating);
+  const sorted = [...beatmaps].sort(function (a, b) {
+    return a.difficulty_rating - b.difficulty_rating;
+  });
   sorted.forEach(function (diff) {
     const color = diffColor(diff.difficulty_rating);
     const stars = diff.difficulty_rating.toFixed(1);
     const tooltip = buildDiffTooltip(diff);
     const badge = document.createElement("span");
-    badge.style.cssText = `display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;cursor:pointer;position:relative;`;
-    badge.textContent = `${stars}★`;
+    badge.style.cssText = `
+			display:inline-flex;align-items:center;gap:4px;
+			background:rgba(0,0,0,0.3);border:1px solid ${color};
+			color:${color};font-size:10px;font-weight:700;
+			padding:2px 7px;border-radius:20px;cursor:pointer;
+			position:relative;transition:background 0.1s;
+		`;
+    // Petit cercle coloré + nom de la difficulté + étoiles
+    badge.innerHTML = `
+			<span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+			<span>${diff.version}</span>
+			<span style="opacity:0.7">${stars}★</span>
+		`;
     badge.appendChild(tooltip);
     badge.onmouseenter = function () {
+      badge.style.background = color + "22";
       tooltip.style.display = "block";
-      const rect = badge.getBoundingClientRect();
-      if (rect.bottom + 160 > window.innerHeight) {
-        tooltip.style.bottom = "24px";
-        tooltip.style.top = "auto";
-      } else {
-        tooltip.style.top = "24px";
-        tooltip.style.bottom = "auto";
-      }
-      tooltip.style.left = "0";
     };
     badge.onmouseleave = function () {
+      badge.style.background = "rgba(0,0,0,0.3)";
       tooltip.style.display = "none";
     };
     wrapper.appendChild(badge);
@@ -463,7 +471,7 @@ function renderBeatmapRow(map, onOpen) {
   metaEl.style.cssText = "font-size:11px;color:var(--spice-subtext);margin-top:2px;";
   metaEl.innerHTML = `${map.artist} • <span style="opacity:0.7">${map.creator}</span>`;
   const statsEl = document.createElement("div");
-  statsEl.style.cssText = "display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--spice-subtext);";
+  statsEl.style.cssText = "display:flex;gap:10px;margin-top:5px;font-size:10px;color:var(--spice-subtext);";
   statsEl.innerHTML = `
 		<span title="Play count">▶ ${fmtNum(map.play_count || 0)}</span>
 		<span title="Favourites">♥ ${fmtNum(map.favourite_count || 0)}</span>
@@ -474,8 +482,18 @@ function renderBeatmapRow(map, onOpen) {
   info.appendChild(renderDiffBadges(map.beatmaps));
   info.appendChild(statsEl);
   const btn = document.createElement("button");
+  btn.style.cssText = `
+		background:${OSU_PINK};color:#fff;border:none;border-radius:5px;
+		padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;
+		flex-shrink:0;margin-top:2px;transition:opacity 0.1s;
+	`;
   btn.textContent = "▶ osu!";
-  btn.style.cssText = `background:var(--spice-button);color:var(--spice-button-text);border:none;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;margin-top:2px;`;
+  btn.onmouseenter = function () {
+    btn.style.opacity = "0.85";
+  };
+  btn.onmouseleave = function () {
+    btn.style.opacity = "1";
+  };
   btn.onclick = function () {
     (0, osuApi_1.openInLazer)(map.id);
     onOpen();
