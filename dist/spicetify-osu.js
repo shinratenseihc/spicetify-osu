@@ -362,12 +362,12 @@ exports.renderMapsInto = exports.renderBeatmapRow = exports.renderDiffBadges = e
 const osuApi_1 = require("./osuApi");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function diffColor(stars) {
-  if (stars < 2) return "#4fc3f7"; // Easy
-  if (stars < 3) return "#66bb6a"; // Normal
-  if (stars < 4) return "#ffa726"; // Hard
-  if (stars < 5) return "#ef5350"; // Insane
-  if (stars < 6.5) return "#ab47bc"; // Expert
-  return "#1a1a1a"; // Expert+
+  if (stars < 2) return "#4fc3f7";
+  if (stars < 3) return "#66bb6a";
+  if (stars < 4) return "#ffa726";
+  if (stars < 5) return "#ef5350";
+  if (stars < 6.5) return "#ab47bc";
+  return "#1a1a1a";
 }
 function fmtNum(n) {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -376,14 +376,14 @@ function fmtNum(n) {
 }
 exports.fmtNum = fmtNum;
 function fmtTime(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 // ─── Difficulty tooltip panel ─────────────────────────────────────────────────
-function buildDiffTooltip(b) {
-  const totalNotes = (b.count_circles || 0) + (b.count_sliders || 0);
-  const nps = b.hit_length > 0 ? (totalNotes / b.hit_length).toFixed(2) : "?";
+function buildDiffTooltip(diff) {
+  const totalNotes = (diff.count_circles || 0) + (diff.count_sliders || 0);
+  const nps = diff.hit_length > 0 ? (totalNotes / diff.hit_length).toFixed(2) : "?";
   const panel = document.createElement("div");
   panel.style.cssText = `
 		display:none;position:absolute;z-index:10000;
@@ -393,13 +393,13 @@ function buildDiffTooltip(b) {
 		color:var(--spice-subtext);line-height:1.7;
 	`;
   panel.innerHTML = `
-		<div style="font-weight:700;color:var(--spice-text);margin-bottom:6px;">${b.version}</div>
-		<div>⭐ <b>${b.difficulty_rating.toFixed(2)}</b> stars</div>
+		<div style="font-weight:700;color:var(--spice-text);margin-bottom:6px;">${diff.version}</div>
+		<div>⭐ <b>${diff.difficulty_rating.toFixed(2)}</b> stars</div>
 		<div>🎵 <b>${nps}</b> NPS</div>
-		<div>⏱ <b>${fmtTime(b.hit_length)}</b> drain / <b>${fmtTime(b.total_length)}</b> total</div>
-		<div>○ <b>${b.count_circles}</b> circles &nbsp; ◇ <b>${b.count_sliders}</b> sliders</div>
+		<div>⏱ <b>${fmtTime(diff.hit_length)}</b> drain / <b>${fmtTime(diff.total_length)}</b> total</div>
+		<div>○ <b>${diff.count_circles}</b> circles &nbsp; ◇ <b>${diff.count_sliders}</b> sliders</div>
 		<div style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.08);padding-top:4px;">
-			AR <b>${b.ar}</b> &nbsp; CS <b>${b.cs}</b> &nbsp; OD <b>${b.accuracy}</b> &nbsp; HP <b>${b.drain}</b>
+			AR <b>${diff.ar}</b> &nbsp; CS <b>${diff.cs}</b> &nbsp; OD <b>${diff.accuracy}</b> &nbsp; HP <b>${diff.drain}</b>
 		</div>
 	`;
   return panel;
@@ -410,21 +410,16 @@ function renderDiffBadges(beatmaps) {
   wrapper.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;position:relative;";
   if (!beatmaps || beatmaps.length === 0) return wrapper;
   const sorted = [...beatmaps].sort((a, b) => a.difficulty_rating - b.difficulty_rating);
-  sorted.forEach(b => {
-    const color = diffColor(b.difficulty_rating);
-    const stars = b.difficulty_rating.toFixed(1);
-    const tooltip = buildDiffTooltip(b);
+  sorted.forEach(function (diff) {
+    const color = diffColor(diff.difficulty_rating);
+    const stars = diff.difficulty_rating.toFixed(1);
+    const tooltip = buildDiffTooltip(diff);
     const badge = document.createElement("span");
-    badge.style.cssText = `
-			display:inline-block;background:${color};color:#fff;
-			font-size:10px;font-weight:700;padding:2px 6px;
-			border-radius:3px;cursor:pointer;position:relative;
-		`;
+    badge.style.cssText = `display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;cursor:pointer;position:relative;`;
     badge.textContent = `${stars}★`;
     badge.appendChild(tooltip);
-    badge.onmouseenter = () => {
+    badge.onmouseenter = function () {
       tooltip.style.display = "block";
-      // Position above badge if near bottom
       const rect = badge.getBoundingClientRect();
       if (rect.bottom + 160 > window.innerHeight) {
         tooltip.style.bottom = "24px";
@@ -435,7 +430,7 @@ function renderDiffBadges(beatmaps) {
       }
       tooltip.style.left = "0";
     };
-    badge.onmouseleave = () => {
+    badge.onmouseleave = function () {
       tooltip.style.display = "none";
     };
     wrapper.appendChild(badge);
@@ -447,12 +442,16 @@ exports.renderDiffBadges = renderDiffBadges;
 function renderBeatmapRow(map, onOpen) {
   const row = document.createElement("div");
   row.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:6px;margin-bottom:4px;background:rgba(255,255,255,0.04);transition:background 0.1s;`;
-  row.onmouseenter = () => row.style.background = "rgba(255,255,255,0.08)";
-  row.onmouseleave = () => row.style.background = "rgba(255,255,255,0.04)";
+  row.onmouseenter = function () {
+    row.style.background = "rgba(255,255,255,0.08)";
+  };
+  row.onmouseleave = function () {
+    row.style.background = "rgba(255,255,255,0.04)";
+  };
   const img = document.createElement("img");
   img.src = map.covers.list || map.covers.card || map.covers.cover;
   img.style.cssText = "width:52px;height:52px;border-radius:4px;object-fit:cover;flex-shrink:0;margin-top:2px;background:rgba(255,255,255,0.1);";
-  img.onerror = () => {
+  img.onerror = function () {
     img.style.visibility = "hidden";
   };
   const info = document.createElement("div");
@@ -477,7 +476,7 @@ function renderBeatmapRow(map, onOpen) {
   const btn = document.createElement("button");
   btn.textContent = "▶ osu!";
   btn.style.cssText = `background:var(--spice-button);color:var(--spice-button-text);border:none;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;margin-top:2px;`;
-  btn.onclick = () => {
+  btn.onclick = function () {
     (0, osuApi_1.openInLazer)(map.id);
     onOpen();
   };
@@ -496,7 +495,9 @@ function renderMapsInto(container, maps, onOpen) {
     container.appendChild(empty);
     return;
   }
-  maps.forEach(map => container.appendChild(renderBeatmapRow(map, onOpen)));
+  maps.forEach(function (map) {
+    container.appendChild(renderBeatmapRow(map, onOpen));
+  });
 }
 exports.renderMapsInto = renderMapsInto;
 },{"./osuApi":2}],6:[function(require,module,exports){
@@ -557,96 +558,79 @@ Object.defineProperty(exports, "__esModule", {
 exports.stopTracklistWatcher = exports.startTracklistWatcher = void 0;
 /**
  * tracklist-watcher.ts
- * Watches Spotify tracklist pages (playlists, albums) and injects
- * a small osu! badge next to tracks that have a matching beatmap.
+ * Watches Spotify tracklist pages and injects a small osu! badge
+ * next to tracks that have a matching beatmap.
  *
- * Strategy:
- *  - MutationObserver watches for new track rows
- *  - Batch search: collects up to 10 tracks then fires one request per track
- *  - Cache: results stored by "artist|title" key to avoid re-fetching
- *  - Throttled: max 1 request per 300ms to avoid hammering the backend
+ * - MutationObserver watches for new track rows
+ * - Queue with 300ms throttle to avoid hammering the backend
+ * - Cache by "artist|title" to avoid re-fetching
  */
 const osuApi_1 = require("./osuApi");
 const OSU_BADGE_ATTR = "data-osu-checked";
-const cache = new Map(); // "artist|title" → has beatmap
-const queue = [];
-let processing = false;
+const resultCache = new Map();
+const pendingQueue = [];
+let isProcessing = false;
 // ─── Badge ────────────────────────────────────────────────────────────────────
 function createBadge() {
   const badge = document.createElement("span");
   badge.className = "osu-tracklist-badge";
   badge.title = "Beatmap available on osu!";
-  badge.style.cssText = `
-		display:inline-flex;align-items:center;justify-content:center;
-		margin-left:6px;vertical-align:middle;
-		width:16px;height:16px;flex-shrink:0;opacity:0.75;
-	`;
-  badge.innerHTML = `
-		<svg width="14" height="14" viewBox="0 0 128 128" fill="currentColor">
-			<circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/>
-			<circle cx="64" cy="64" r="20" fill="currentColor"/>
-		</svg>
-	`;
+  badge.style.cssText = "display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;width:16px;height:16px;flex-shrink:0;opacity:0.75;";
+  badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 128 128" fill="currentColor"><circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/><circle cx="64" cy="64" r="20" fill="currentColor"/></svg>`;
   return badge;
-}
-// ─── Queue processor ──────────────────────────────────────────────────────────
-function processQueue() {
-  return __awaiter(this, void 0, void 0, function* () {
-    if (processing || queue.length === 0) return;
-    processing = true;
-    while (queue.length > 0) {
-      const item = queue.shift();
-      // Already cached
-      if (cache.has(item.key)) {
-        if (cache.get(item.key)) injectBadge(item.el);
-        continue;
-      }
-      try {
-        const maps = yield (0, osuApi_1.searchBeatmapsets)(`${item.artist} ${item.title}`);
-        const found = maps.some(map => {
-          const t = item.title.toLowerCase();
-          const a = item.artist.toLowerCase();
-          return map.title.toLowerCase().includes(t) || t.includes(map.title.toLowerCase()) || map.artist.toLowerCase().includes(a) || a.includes(map.artist.toLowerCase());
-        });
-        cache.set(item.key, found);
-        if (found) injectBadge(item.el);
-      } catch (_a) {
-        // Backend unavailable, skip silently
-      }
-      // Throttle: 1 request per 300ms
-      yield new Promise(r => setTimeout(r, 300));
-    }
-    processing = false;
-  });
 }
 function injectBadge(titleEl) {
   if (titleEl.querySelector(".osu-tracklist-badge")) return;
   titleEl.appendChild(createBadge());
 }
+// ─── Queue processor (throttled) ─────────────────────────────────────────────
+function processQueue() {
+  return __awaiter(this, void 0, void 0, function* () {
+    if (isProcessing || pendingQueue.length === 0) return;
+    isProcessing = true;
+    while (pendingQueue.length > 0) {
+      const item = pendingQueue.shift();
+      if (resultCache.has(item.cacheKey)) {
+        if (resultCache.get(item.cacheKey)) injectBadge(item.titleEl);
+        continue;
+      }
+      try {
+        const maps = yield (0, osuApi_1.searchBeatmapsets)(`${item.artist} ${item.title}`);
+        const titleLower = item.title.toLowerCase();
+        const artistLower = item.artist.toLowerCase();
+        const found = maps.some(map => map.title.toLowerCase().includes(titleLower) || titleLower.includes(map.title.toLowerCase()) || map.artist.toLowerCase().includes(artistLower) || artistLower.includes(map.artist.toLowerCase()));
+        resultCache.set(item.cacheKey, found);
+        if (found) injectBadge(item.titleEl);
+      } catch (_a) {
+        // Backend unavailable, skip silently
+      }
+      yield new Promise(resolve => setTimeout(resolve, 350));
+    }
+    isProcessing = false;
+  });
+}
 // ─── Row scanner ──────────────────────────────────────────────────────────────
 function scanRow(row) {
   var _a, _b, _c, _d;
-  // Skip already processed rows
   if (row.getAttribute(OSU_BADGE_ATTR)) return;
-  // Spotify tracklist row selectors (xpui)
-  const titleEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-medium, " + ".tracklist-row .tracklist-name, " + "[data-encore-id='text'].encore-text-body-medium");
+  // Try multiple Spotify tracklist row selectors
+  const titleEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-medium, " + ".tracklist-row__name, " + "[data-encore-id='text'].encore-text-body-medium");
   if (!titleEl) return;
   row.setAttribute(OSU_BADGE_ATTR, "1");
-  // Get artist from the row
-  const artistEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-small a, " + ".tracklist-row .artists-albums a");
-  const title = (_b = (_a = titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "";
-  const artist = (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : "";
-  if (!title) return;
-  const key = `${artist}|${title}`.toLowerCase();
-  if (cache.has(key)) {
-    if (cache.get(key)) injectBadge(titleEl);
+  const artistEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-small a, " + ".tracklist-row__artist-name a");
+  const trackTitle = (_b = (_a = titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "";
+  const trackArtist = (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : "";
+  if (!trackTitle) return;
+  const cacheKey = `${trackArtist}|${trackTitle}`.toLowerCase();
+  if (resultCache.has(cacheKey)) {
+    if (resultCache.get(cacheKey)) injectBadge(titleEl);
     return;
   }
-  queue.push({
-    key,
-    artist,
-    title,
-    el: titleEl
+  pendingQueue.push({
+    cacheKey,
+    artist: trackArtist,
+    title: trackTitle,
+    titleEl
   });
   processQueue();
 }
@@ -654,17 +638,17 @@ function scanRow(row) {
 let observer = null;
 function startTracklistWatcher() {
   if (observer) return;
-  // Scan existing rows on page
-  document.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
+  // Delay initial scan to let Spotify fully render
+  setTimeout(() => {
+    document.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
+  }, 2000);
   observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
       mutation.addedNodes.forEach(node => {
         if (!(node instanceof Element)) return;
-        // Direct row
         if (node.matches("[data-testid='tracklist-row'], .tracklist-row")) {
           scanRow(node);
         }
-        // Rows inside added container
         node.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
       });
     }

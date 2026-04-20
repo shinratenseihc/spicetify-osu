@@ -9,12 +9,12 @@ import { openInLazer } from "./osuApi"
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function diffColor(stars: number): string {
-	if (stars < 2) return "#4fc3f7"   // Easy
-	if (stars < 3) return "#66bb6a"   // Normal
-	if (stars < 4) return "#ffa726"   // Hard
-	if (stars < 5) return "#ef5350"   // Insane
-	if (stars < 6.5) return "#ab47bc" // Expert
-	return "#1a1a1a"                   // Expert+
+	if (stars < 2) return "#4fc3f7"
+	if (stars < 3) return "#66bb6a"
+	if (stars < 4) return "#ffa726"
+	if (stars < 5) return "#ef5350"
+	if (stars < 6.5) return "#ab47bc"
+	return "#1a1a1a"
 }
 
 export function fmtNum(n: number): string {
@@ -24,16 +24,16 @@ export function fmtNum(n: number): string {
 }
 
 function fmtTime(seconds: number): string {
-	const m = Math.floor(seconds / 60)
-	const s = seconds % 60
-	return `${m}:${s.toString().padStart(2, "0")}`
+	const mins = Math.floor(seconds / 60)
+	const secs = seconds % 60
+	return `${mins}:${secs.toString().padStart(2, "0")}`
 }
 
 // ─── Difficulty tooltip panel ─────────────────────────────────────────────────
 
-function buildDiffTooltip(b: OsuBeatmap): HTMLElement {
-	const totalNotes = (b.count_circles || 0) + (b.count_sliders || 0)
-	const nps = b.hit_length > 0 ? (totalNotes / b.hit_length).toFixed(2) : "?"
+function buildDiffTooltip(diff: OsuBeatmap): HTMLElement {
+	const totalNotes = (diff.count_circles || 0) + (diff.count_sliders || 0)
+	const nps = diff.hit_length > 0 ? (totalNotes / diff.hit_length).toFixed(2) : "?"
 
 	const panel = document.createElement("div")
 	panel.style.cssText = `
@@ -44,13 +44,13 @@ function buildDiffTooltip(b: OsuBeatmap): HTMLElement {
 		color:var(--spice-subtext);line-height:1.7;
 	`
 	panel.innerHTML = `
-		<div style="font-weight:700;color:var(--spice-text);margin-bottom:6px;">${b.version}</div>
-		<div>⭐ <b>${b.difficulty_rating.toFixed(2)}</b> stars</div>
+		<div style="font-weight:700;color:var(--spice-text);margin-bottom:6px;">${diff.version}</div>
+		<div>⭐ <b>${diff.difficulty_rating.toFixed(2)}</b> stars</div>
 		<div>🎵 <b>${nps}</b> NPS</div>
-		<div>⏱ <b>${fmtTime(b.hit_length)}</b> drain / <b>${fmtTime(b.total_length)}</b> total</div>
-		<div>○ <b>${b.count_circles}</b> circles &nbsp; ◇ <b>${b.count_sliders}</b> sliders</div>
+		<div>⏱ <b>${fmtTime(diff.hit_length)}</b> drain / <b>${fmtTime(diff.total_length)}</b> total</div>
+		<div>○ <b>${diff.count_circles}</b> circles &nbsp; ◇ <b>${diff.count_sliders}</b> sliders</div>
 		<div style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.08);padding-top:4px;">
-			AR <b>${b.ar}</b> &nbsp; CS <b>${b.cs}</b> &nbsp; OD <b>${b.accuracy}</b> &nbsp; HP <b>${b.drain}</b>
+			AR <b>${diff.ar}</b> &nbsp; CS <b>${diff.cs}</b> &nbsp; OD <b>${diff.accuracy}</b> &nbsp; HP <b>${diff.drain}</b>
 		</div>
 	`
 	return panel
@@ -61,28 +61,22 @@ function buildDiffTooltip(b: OsuBeatmap): HTMLElement {
 export function renderDiffBadges(beatmaps: OsuBeatmapset["beatmaps"]): HTMLElement {
 	const wrapper = document.createElement("div")
 	wrapper.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;position:relative;"
-
 	if (!beatmaps || beatmaps.length === 0) return wrapper
 
 	const sorted = [...beatmaps].sort((a, b) => a.difficulty_rating - b.difficulty_rating)
 
-	sorted.forEach(b => {
-		const color = diffColor(b.difficulty_rating)
-		const stars = b.difficulty_rating.toFixed(1)
-		const tooltip = buildDiffTooltip(b)
+	sorted.forEach(function(diff) {
+		const color = diffColor(diff.difficulty_rating)
+		const stars = diff.difficulty_rating.toFixed(1)
+		const tooltip = buildDiffTooltip(diff)
 
 		const badge = document.createElement("span")
-		badge.style.cssText = `
-			display:inline-block;background:${color};color:#fff;
-			font-size:10px;font-weight:700;padding:2px 6px;
-			border-radius:3px;cursor:pointer;position:relative;
-		`
+		badge.style.cssText = `display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;cursor:pointer;position:relative;`
 		badge.textContent = `${stars}★`
 		badge.appendChild(tooltip)
 
-		badge.onmouseenter = () => {
+		badge.onmouseenter = function() {
 			tooltip.style.display = "block"
-			// Position above badge if near bottom
 			const rect = badge.getBoundingClientRect()
 			if (rect.bottom + 160 > window.innerHeight) {
 				tooltip.style.bottom = "24px"
@@ -93,7 +87,7 @@ export function renderDiffBadges(beatmaps: OsuBeatmapset["beatmaps"]): HTMLEleme
 			}
 			tooltip.style.left = "0"
 		}
-		badge.onmouseleave = () => { tooltip.style.display = "none" }
+		badge.onmouseleave = function() { tooltip.style.display = "none" }
 
 		wrapper.appendChild(badge)
 	})
@@ -106,13 +100,13 @@ export function renderDiffBadges(beatmaps: OsuBeatmapset["beatmaps"]): HTMLEleme
 export function renderBeatmapRow(map: OsuBeatmapset, onOpen: () => void): HTMLElement {
 	const row = document.createElement("div")
 	row.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:6px;margin-bottom:4px;background:rgba(255,255,255,0.04);transition:background 0.1s;`
-	row.onmouseenter = () => row.style.background = "rgba(255,255,255,0.08)"
-	row.onmouseleave = () => row.style.background = "rgba(255,255,255,0.04)"
+	row.onmouseenter = function() { row.style.background = "rgba(255,255,255,0.08)" }
+	row.onmouseleave = function() { row.style.background = "rgba(255,255,255,0.04)" }
 
 	const img = document.createElement("img")
 	img.src = map.covers.list || map.covers.card || map.covers.cover
 	img.style.cssText = "width:52px;height:52px;border-radius:4px;object-fit:cover;flex-shrink:0;margin-top:2px;background:rgba(255,255,255,0.1);"
-	img.onerror = () => { img.style.visibility = "hidden" }
+	img.onerror = function() { img.style.visibility = "hidden" }
 
 	const info = document.createElement("div")
 	info.style.cssText = "flex:1;min-width:0;"
@@ -141,7 +135,7 @@ export function renderBeatmapRow(map: OsuBeatmapset, onOpen: () => void): HTMLEl
 	const btn = document.createElement("button")
 	btn.textContent = "▶ osu!"
 	btn.style.cssText = `background:var(--spice-button);color:var(--spice-button-text);border:none;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;margin-top:2px;`
-	btn.onclick = () => { openInLazer(map.id); onOpen() }
+	btn.onclick = function() { openInLazer(map.id); onOpen() }
 
 	row.appendChild(img)
 	row.appendChild(info)
@@ -159,5 +153,5 @@ export function renderMapsInto(container: HTMLElement, maps: OsuBeatmapset[], on
 		container.appendChild(empty)
 		return
 	}
-	maps.forEach(map => container.appendChild(renderBeatmapRow(map, onOpen)))
+	maps.forEach(function(map) { container.appendChild(renderBeatmapRow(map, onOpen)) })
 }
