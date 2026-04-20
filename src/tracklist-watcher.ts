@@ -4,7 +4,6 @@
  * Selector confirmed via DOM inspection (Spotify xpui, April 2026):
  *   Row:   .main-trackList-trackListRow
  *   Title: .main-trackList-rowMainContent .encore-text-body-medium
- *   Artist: first .encore-text-body-small a inside the row
  */
 import { searchBeatmapsets } from "./osuApi"
 
@@ -13,22 +12,23 @@ const resultCache = new Map<string, boolean>()
 const pendingQueue: Array<{ cacheKey: string; artist: string; title: string; titleEl: HTMLElement }> = []
 let isProcessing = false
 
+// osu! logo colors
+const OSU_PINK = "#FF66AA"
+
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
 function createBadge(): HTMLElement {
 	const badge = document.createElement("span")
 	badge.className = "osu-tracklist-badge"
 	badge.title = "Beatmap available on osu!"
-	badge.style.cssText = [
-		"display:inline-flex",
-		"align-items:center",
-		"margin-left:5px",
-		"vertical-align:middle",
-		"opacity:0.7",
-		"position:relative",
-		"top:-1px",
-	].join(";")
-	badge.innerHTML = `<svg width="13" height="13" viewBox="0 0 128 128" fill="currentColor"><circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/><circle cx="64" cy="64" r="20" fill="currentColor"/></svg>`
+	badge.style.cssText = "display:inline-flex;align-items:center;margin-left:5px;vertical-align:middle;position:relative;top:-1px;"
+	// Official osu! logo: outer ring + inner circle in osu! pink
+	badge.innerHTML = `
+		<svg width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+			<circle cx="64" cy="64" r="60" fill="none" stroke="${OSU_PINK}" stroke-width="12"/>
+			<circle cx="64" cy="64" r="22" fill="${OSU_PINK}"/>
+		</svg>
+	`
 	return badge
 }
 
@@ -79,15 +79,12 @@ function scanRow(row: Element) {
 	if (row.getAttribute(OSU_BADGE_ATTR)) return
 	row.setAttribute(OSU_BADGE_ATTR, "1")
 
-	// Title span: confirmed selector for Spotify xpui (April 2026)
 	const titleEl = row.querySelector<HTMLElement>(
 		".main-trackList-rowMainContent .encore-text-body-medium"
 	)
 	if (!titleEl) return
 
-	// Artist: first link inside the row that's not the title container
 	const artistEl = row.querySelector<HTMLElement>(
-		".main-trackList-rowSectionEnd a, " +
 		".encore-text-body-small a"
 	)
 
@@ -114,7 +111,6 @@ let observer: MutationObserver | null = null
 export function startTracklistWatcher() {
 	if (observer) return
 
-	// Initial scan — delay to let Spotify render
 	setTimeout(function() {
 		document.querySelectorAll(ROW_SELECTOR).forEach(scanRow)
 	}, 2000)
