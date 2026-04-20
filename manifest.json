@@ -1,9 +1,10 @@
 {
   "name": "spicetify-osu",
-  "description": "A Spicetify extension that automatically searches osu! beatmaps for the song currently playing in Spotify. Shows difficulty badges, play count and favourites. Opens maps directly in osu!lazer.",
+  "description": "Automatically searches osu! beatmaps for the song playing in Spotify. Shows difficulty badges with NPS/stats, play count, favourites. Playlist badge indicators. Opens maps directly in osu!lazer.",
   "preview": "preview.png",
   "main": "dist/spicetify-osu.js",
   "readme": "README.md",
+  "homePage": "https://github.com/shinratenseihc/spicetify-osu",
   "authors": [
     {
       "name": "Shinra Tensei",
