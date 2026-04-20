@@ -560,10 +560,6 @@ exports.stopTracklistWatcher = exports.startTracklistWatcher = void 0;
  * tracklist-watcher.ts
  * Watches Spotify tracklist pages and injects a small osu! badge
  * next to tracks that have a matching beatmap.
- *
- * - MutationObserver watches for new track rows
- * - Queue with 300ms throttle to avoid hammering the backend
- * - Cache by "artist|title" to avoid re-fetching
  */
 const osuApi_1 = require("./osuApi");
 const OSU_BADGE_ATTR = "data-osu-checked";
@@ -598,60 +594,79 @@ function processQueue() {
         const maps = yield (0, osuApi_1.searchBeatmapsets)(`${item.artist} ${item.title}`);
         const titleLower = item.title.toLowerCase();
         const artistLower = item.artist.toLowerCase();
-        const found = maps.some(map => map.title.toLowerCase().includes(titleLower) || titleLower.includes(map.title.toLowerCase()) || map.artist.toLowerCase().includes(artistLower) || artistLower.includes(map.artist.toLowerCase()));
+        const found = maps.some(function (map) {
+          return map.title.toLowerCase().includes(titleLower) || titleLower.includes(map.title.toLowerCase()) || map.artist.toLowerCase().includes(artistLower) || artistLower.includes(map.artist.toLowerCase());
+        });
         resultCache.set(item.cacheKey, found);
         if (found) injectBadge(item.titleEl);
       } catch (_a) {
         // Backend unavailable, skip silently
       }
-      yield new Promise(resolve => setTimeout(resolve, 350));
+      yield new Promise(function (resolve) {
+        setTimeout(resolve, 350);
+      });
     }
     isProcessing = false;
   });
 }
 // ─── Row scanner ──────────────────────────────────────────────────────────────
-function scanRow(row) {
+// Sélecteurs confirmés via inspection DOM Spotify xpui (Avril 2026)
+// Row class: .main-trackList-trackListRow
+// Titre: premier span avec classe encore-text-body-medium dans la row
+// Artiste: span avec standalone-ellipsis-one-line + encore-text-body-small
+function getTitleAndArtist(row) {
   var _a, _b, _c, _d;
+  // Le titre est dans le premier span encore-text-body-medium de la row
+  const titleEl = row.querySelector(".encore-text-body-medium:not(.encore-internal-color-text-subdued)");
+  // L'artiste est dans un span standalone-ellipsis-one-line encore-text-body-small
+  const artistEl = row.querySelector(".main-trackList-rowSectionEnd .encore-text-body-small.standalone-ellipsis-one-line, " + ".encore-text-body-small.standalone-ellipsis-one-line");
+  return {
+    titleEl,
+    title: (_b = (_a = titleEl === null || titleEl === void 0 ? void 0 : titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "",
+    artist: (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : ""
+  };
+}
+function scanRow(row) {
   if (row.getAttribute(OSU_BADGE_ATTR)) return;
-  // Try multiple Spotify tracklist row selectors
-  const titleEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-medium, " + ".tracklist-row__name, " + "[data-encore-id='text'].encore-text-body-medium");
-  if (!titleEl) return;
   row.setAttribute(OSU_BADGE_ATTR, "1");
-  const artistEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-small a, " + ".tracklist-row__artist-name a");
-  const trackTitle = (_b = (_a = titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "";
-  const trackArtist = (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : "";
-  if (!trackTitle) return;
-  const cacheKey = `${trackArtist}|${trackTitle}`.toLowerCase();
+  const {
+    titleEl,
+    title,
+    artist
+  } = getTitleAndArtist(row);
+  if (!titleEl || !title) return;
+  const cacheKey = `${artist}|${title}`.toLowerCase();
   if (resultCache.has(cacheKey)) {
     if (resultCache.get(cacheKey)) injectBadge(titleEl);
     return;
   }
   pendingQueue.push({
     cacheKey,
-    artist: trackArtist,
-    title: trackTitle,
+    artist,
+    title,
     titleEl
   });
   processQueue();
 }
 // ─── MutationObserver ─────────────────────────────────────────────────────────
+const ROW_SELECTOR = ".main-trackList-trackListRow";
 let observer = null;
 function startTracklistWatcher() {
   if (observer) return;
-  // Delay initial scan to let Spotify fully render
-  setTimeout(() => {
-    document.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
+  setTimeout(function () {
+    document.querySelectorAll(ROW_SELECTOR).forEach(scanRow);
   }, 2000);
-  observer = new MutationObserver(mutations => {
-    for (const mutation of mutations) {
-      mutation.addedNodes.forEach(node => {
+  observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      mutation.addedNodes.forEach(function (node) {
         if (!(node instanceof Element)) return;
-        if (node.matches("[data-testid='tracklist-row'], .tracklist-row")) {
+        if (node.matches(ROW_SELECTOR)) {
           scanRow(node);
+        } else {
+          node.querySelectorAll(ROW_SELECTOR).forEach(scanRow);
         }
-        node.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
       });
-    }
+    });
   });
   observer.observe(document.body, {
     childList: true,

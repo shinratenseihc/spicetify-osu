@@ -2,10 +2,6 @@
  * tracklist-watcher.ts
  * Watches Spotify tracklist pages and injects a small osu! badge
  * next to tracks that have a matching beatmap.
- *
- * - MutationObserver watches for new track rows
- * - Queue with 300ms throttle to avoid hammering the backend
- * - Cache by "artist|title" to avoid re-fetching
  */
 import { searchBeatmapsets } from "./osuApi"
 
@@ -48,79 +44,91 @@ async function processQueue() {
 			const maps = await searchBeatmapsets(`${item.artist} ${item.title}`)
 			const titleLower = item.title.toLowerCase()
 			const artistLower = item.artist.toLowerCase()
-			const found = maps.some(map =>
-				map.title.toLowerCase().includes(titleLower) || titleLower.includes(map.title.toLowerCase())
-				|| map.artist.toLowerCase().includes(artistLower) || artistLower.includes(map.artist.toLowerCase())
-			)
+			const found = maps.some(function(map) {
+				return map.title.toLowerCase().includes(titleLower)
+					|| titleLower.includes(map.title.toLowerCase())
+					|| map.artist.toLowerCase().includes(artistLower)
+					|| artistLower.includes(map.artist.toLowerCase())
+			})
 			resultCache.set(item.cacheKey, found)
 			if (found) injectBadge(item.titleEl)
 		} catch {
 			// Backend unavailable, skip silently
 		}
 
-		await new Promise(resolve => setTimeout(resolve, 350))
+		await new Promise(function(resolve) { setTimeout(resolve, 350) })
 	}
 
 	isProcessing = false
 }
 
 // ─── Row scanner ──────────────────────────────────────────────────────────────
+// Sélecteurs confirmés via inspection DOM Spotify xpui (Avril 2026)
+// Row class: .main-trackList-trackListRow
+// Titre: premier span avec classe encore-text-body-medium dans la row
+// Artiste: span avec standalone-ellipsis-one-line + encore-text-body-small
+
+function getTitleAndArtist(row: Element): { titleEl: HTMLElement | null; title: string; artist: string } {
+	// Le titre est dans le premier span encore-text-body-medium de la row
+	const titleEl = row.querySelector<HTMLElement>(
+		".encore-text-body-medium:not(.encore-internal-color-text-subdued)"
+	)
+
+	// L'artiste est dans un span standalone-ellipsis-one-line encore-text-body-small
+	const artistEl = row.querySelector<HTMLElement>(
+		".main-trackList-rowSectionEnd .encore-text-body-small.standalone-ellipsis-one-line, " +
+		".encore-text-body-small.standalone-ellipsis-one-line"
+	)
+
+	return {
+		titleEl,
+		title: titleEl?.textContent?.trim() ?? "",
+		artist: artistEl?.textContent?.trim() ?? "",
+	}
+}
 
 function scanRow(row: Element) {
 	if (row.getAttribute(OSU_BADGE_ATTR)) return
-
-	// Try multiple Spotify tracklist row selectors
-	const titleEl = row.querySelector<HTMLElement>(
-		"[data-testid='tracklist-row'] .encore-text-body-medium, " +
-		".tracklist-row__name, " +
-		"[data-encore-id='text'].encore-text-body-medium"
-	)
-	if (!titleEl) return
-
 	row.setAttribute(OSU_BADGE_ATTR, "1")
 
-	const artistEl = row.querySelector<HTMLElement>(
-		"[data-testid='tracklist-row'] .encore-text-body-small a, " +
-		".tracklist-row__artist-name a"
-	)
+	const { titleEl, title, artist } = getTitleAndArtist(row)
+	if (!titleEl || !title) return
 
-	const trackTitle = titleEl.textContent?.trim() ?? ""
-	const trackArtist = artistEl?.textContent?.trim() ?? ""
-	if (!trackTitle) return
-
-	const cacheKey = `${trackArtist}|${trackTitle}`.toLowerCase()
+	const cacheKey = `${artist}|${title}`.toLowerCase()
 
 	if (resultCache.has(cacheKey)) {
 		if (resultCache.get(cacheKey)) injectBadge(titleEl)
 		return
 	}
 
-	pendingQueue.push({ cacheKey, artist: trackArtist, title: trackTitle, titleEl })
+	pendingQueue.push({ cacheKey, artist, title, titleEl })
 	processQueue()
 }
 
 // ─── MutationObserver ─────────────────────────────────────────────────────────
+
+const ROW_SELECTOR = ".main-trackList-trackListRow"
 
 let observer: MutationObserver | null = null
 
 export function startTracklistWatcher() {
 	if (observer) return
 
-	// Delay initial scan to let Spotify fully render
-	setTimeout(() => {
-		document.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow)
+	setTimeout(function() {
+		document.querySelectorAll(ROW_SELECTOR).forEach(scanRow)
 	}, 2000)
 
-	observer = new MutationObserver((mutations) => {
-		for (const mutation of mutations) {
-			mutation.addedNodes.forEach(node => {
+	observer = new MutationObserver(function(mutations) {
+		mutations.forEach(function(mutation) {
+			mutation.addedNodes.forEach(function(node) {
 				if (!(node instanceof Element)) return
-				if (node.matches("[data-testid='tracklist-row'], .tracklist-row")) {
+				if (node.matches(ROW_SELECTOR)) {
 					scanRow(node)
+				} else {
+					node.querySelectorAll(ROW_SELECTOR).forEach(scanRow)
 				}
-				node.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow)
 			})
-		}
+		})
 	})
 
 	observer.observe(document.body, { childList: true, subtree: true })
