@@ -37,18 +37,20 @@ Object.defineProperty(exports, "__esModule", {
  * Responsibilities (and only these):
  *   1. Wait for Spicetify + DOM to be ready
  *   2. Inject the player button
- *   3. Listen for track changes
- *   4. Fetch beatmaps and update shared state
+ *   3. Listen for track changes and fetch beatmaps
+ *   4. Start the tracklist watcher (badge on playlist tracks)
  *
- * For UI logic → see popup.ts and player-button.ts
- * For rendering → see renderer.ts
- * For API calls → see osuApi.ts
- * For shared state → see store.ts
+ * For UI logic         → popup.ts, player-button.ts
+ * For rendering        → renderer.ts
+ * For API calls        → osuApi.ts
+ * For shared state     → store.ts
+ * For playlist badges  → tracklist-watcher.ts
  */
 const osuApi_1 = require("./osuApi");
 const store_1 = require("./store");
 const player_button_1 = require("./player-button");
 const popup_1 = require("./popup");
+const tracklist_watcher_1 = require("./tracklist-watcher");
 // ─── Track change handler ─────────────────────────────────────────────────────
 function onSongChange() {
   var _a, _b, _c, _d, _e, _f;
@@ -100,11 +102,9 @@ function onSongChange() {
 function main() {
   var _a, _b;
   return __awaiter(this, void 0, void 0, function* () {
-    // Wait for Spicetify APIs
     while (!((_a = Spicetify === null || Spicetify === void 0 ? void 0 : Spicetify.Player) === null || _a === void 0 ? void 0 : _a.data) || !(Spicetify === null || Spicetify === void 0 ? void 0 : Spicetify.LocalStorage)) {
       yield new Promise(r => setTimeout(r, 300));
     }
-    // Wait for player bar DOM
     let attempts = 0;
     while (attempts++ < 20) {
       const bar = (_b = document.querySelector(".main-nowPlayingBar-extraControls")) !== null && _b !== void 0 ? _b : document.querySelector(".extra-controls-container");
@@ -112,16 +112,20 @@ function main() {
       yield new Promise(r => setTimeout(r, 500));
     }
     (0, player_button_1.injectPlayerButton)();
+    (0, tracklist_watcher_1.startTracklistWatcher)();
     Spicetify.Player.addEventListener("songchange", onSongChange);
     onSongChange();
   });
 }
 main();
-},{"./osuApi":2,"./player-button":3,"./popup":4,"./store":6}],2:[function(require,module,exports){
+},{"./osuApi":2,"./player-button":3,"./popup":4,"./store":6,"./tracklist-watcher":7}],2:[function(require,module,exports){
 "use strict";
 
-// osu! API via backend local HTTP (bypass CORS)
-// Les credentials sont dans config.json cote backend, pas besoin de les stocker ici
+/**
+ * osuApi.ts
+ * All HTTP calls to the local backend proxy.
+ * Backend address, search, and open-in-lazer logic lives here.
+ */
 var __awaiter = this && this.__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
@@ -354,9 +358,9 @@ function _buildTabs() {
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.renderMapsInto = exports.renderBeatmapRow = exports.fmtNum = exports.renderDiffBadges = void 0;
+exports.renderMapsInto = exports.renderBeatmapRow = exports.renderDiffBadges = exports.fmtNum = void 0;
 const osuApi_1 = require("./osuApi");
-// ─── Difficulty badge colors (osu! standard palette) ─────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function diffColor(stars) {
   if (stars < 2) return "#4fc3f7"; // Easy
   if (stars < 3) return "#66bb6a"; // Normal
@@ -365,22 +369,80 @@ function diffColor(stars) {
   if (stars < 6.5) return "#ab47bc"; // Expert
   return "#1a1a1a"; // Expert+
 }
-function renderDiffBadges(beatmaps) {
-  if (!beatmaps || beatmaps.length === 0) return "";
-  return [...beatmaps].sort((a, b) => a.difficulty_rating - b.difficulty_rating).map(b => {
-    const color = diffColor(b.difficulty_rating);
-    const stars = b.difficulty_rating.toFixed(1);
-    return `<span title="${b.version} (${stars}★)" style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin:1px 2px 1px 0;">${stars}★</span>`;
-  }).join("");
-}
-exports.renderDiffBadges = renderDiffBadges;
-// ─── Number formatting ────────────────────────────────────────────────────────
 function fmtNum(n) {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return n.toString();
 }
 exports.fmtNum = fmtNum;
+function fmtTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+// ─── Difficulty tooltip panel ─────────────────────────────────────────────────
+function buildDiffTooltip(b) {
+  const totalNotes = (b.count_circles || 0) + (b.count_sliders || 0);
+  const nps = b.hit_length > 0 ? (totalNotes / b.hit_length).toFixed(2) : "?";
+  const panel = document.createElement("div");
+  panel.style.cssText = `
+		display:none;position:absolute;z-index:10000;
+		background:var(--spice-main);border:1px solid rgba(255,255,255,0.15);
+		border-radius:8px;padding:10px 12px;min-width:180px;
+		box-shadow:0 4px 16px rgba(0,0,0,0.5);font-size:11px;
+		color:var(--spice-subtext);line-height:1.7;
+	`;
+  panel.innerHTML = `
+		<div style="font-weight:700;color:var(--spice-text);margin-bottom:6px;">${b.version}</div>
+		<div>⭐ <b>${b.difficulty_rating.toFixed(2)}</b> stars</div>
+		<div>🎵 <b>${nps}</b> NPS</div>
+		<div>⏱ <b>${fmtTime(b.hit_length)}</b> drain / <b>${fmtTime(b.total_length)}</b> total</div>
+		<div>○ <b>${b.count_circles}</b> circles &nbsp; ◇ <b>${b.count_sliders}</b> sliders</div>
+		<div style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.08);padding-top:4px;">
+			AR <b>${b.ar}</b> &nbsp; CS <b>${b.cs}</b> &nbsp; OD <b>${b.accuracy}</b> &nbsp; HP <b>${b.drain}</b>
+		</div>
+	`;
+  return panel;
+}
+// ─── Difficulty badges with hover tooltip ────────────────────────────────────
+function renderDiffBadges(beatmaps) {
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;position:relative;";
+  if (!beatmaps || beatmaps.length === 0) return wrapper;
+  const sorted = [...beatmaps].sort((a, b) => a.difficulty_rating - b.difficulty_rating);
+  sorted.forEach(b => {
+    const color = diffColor(b.difficulty_rating);
+    const stars = b.difficulty_rating.toFixed(1);
+    const tooltip = buildDiffTooltip(b);
+    const badge = document.createElement("span");
+    badge.style.cssText = `
+			display:inline-block;background:${color};color:#fff;
+			font-size:10px;font-weight:700;padding:2px 6px;
+			border-radius:3px;cursor:pointer;position:relative;
+		`;
+    badge.textContent = `${stars}★`;
+    badge.appendChild(tooltip);
+    badge.onmouseenter = () => {
+      tooltip.style.display = "block";
+      // Position above badge if near bottom
+      const rect = badge.getBoundingClientRect();
+      if (rect.bottom + 160 > window.innerHeight) {
+        tooltip.style.bottom = "24px";
+        tooltip.style.top = "auto";
+      } else {
+        tooltip.style.top = "24px";
+        tooltip.style.bottom = "auto";
+      }
+      tooltip.style.left = "0";
+    };
+    badge.onmouseleave = () => {
+      tooltip.style.display = "none";
+    };
+    wrapper.appendChild(badge);
+  });
+  return wrapper;
+}
+exports.renderDiffBadges = renderDiffBadges;
 // ─── Beatmap row ──────────────────────────────────────────────────────────────
 function renderBeatmapRow(map, onOpen) {
   const row = document.createElement("div");
@@ -395,16 +457,23 @@ function renderBeatmapRow(map, onOpen) {
   };
   const info = document.createElement("div");
   info.style.cssText = "flex:1;min-width:0;";
-  info.innerHTML = `
-		<div style="font-size:13px;font-weight:600;color:var(--spice-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${map.title}</div>
-		<div style="font-size:11px;color:var(--spice-subtext);margin-top:2px">${map.artist} • <span style="opacity:0.7">${map.creator}</span></div>
-		<div style="margin-top:4px;line-height:1.4">${renderDiffBadges(map.beatmaps)}</div>
-		<div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--spice-subtext);">
-			<span title="Play count">▶ ${fmtNum(map.play_count || 0)}</span>
-			<span title="Favourites">♥ ${fmtNum(map.favourite_count || 0)}</span>
-			<span style="opacity:0.5">${map.status}</span>
-		</div>
+  const titleEl = document.createElement("div");
+  titleEl.style.cssText = "font-size:13px;font-weight:600;color:var(--spice-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+  titleEl.textContent = map.title;
+  const metaEl = document.createElement("div");
+  metaEl.style.cssText = "font-size:11px;color:var(--spice-subtext);margin-top:2px;";
+  metaEl.innerHTML = `${map.artist} • <span style="opacity:0.7">${map.creator}</span>`;
+  const statsEl = document.createElement("div");
+  statsEl.style.cssText = "display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--spice-subtext);";
+  statsEl.innerHTML = `
+		<span title="Play count">▶ ${fmtNum(map.play_count || 0)}</span>
+		<span title="Favourites">♥ ${fmtNum(map.favourite_count || 0)}</span>
+		<span style="opacity:0.5">${map.status}</span>
 	`;
+  info.appendChild(titleEl);
+  info.appendChild(metaEl);
+  info.appendChild(renderDiffBadges(map.beatmaps));
+  info.appendChild(statsEl);
   const btn = document.createElement("button");
   btn.textContent = "▶ osu!";
   btn.style.cssText = `background:var(--spice-button);color:var(--spice-button-text);border:none;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;margin-top:2px;`;
@@ -452,4 +521,163 @@ function setState(patch) {
   if (patch.searching !== undefined) exports.searching = patch.searching;
 }
 exports.setState = setState;
-},{}]},{},[1]);
+},{}],7:[function(require,module,exports){
+"use strict";
+
+var __awaiter = this && this.__awaiter || function (thisArg, _arguments, P, generator) {
+  function adopt(value) {
+    return value instanceof P ? value : new P(function (resolve) {
+      resolve(value);
+    });
+  }
+  return new (P || (P = Promise))(function (resolve, reject) {
+    function fulfilled(value) {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    }
+    function rejected(value) {
+      try {
+        step(generator["throw"](value));
+      } catch (e) {
+        reject(e);
+      }
+    }
+    function step(result) {
+      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+    }
+    step((generator = generator.apply(thisArg, _arguments || [])).next());
+  });
+};
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.stopTracklistWatcher = exports.startTracklistWatcher = void 0;
+/**
+ * tracklist-watcher.ts
+ * Watches Spotify tracklist pages (playlists, albums) and injects
+ * a small osu! badge next to tracks that have a matching beatmap.
+ *
+ * Strategy:
+ *  - MutationObserver watches for new track rows
+ *  - Batch search: collects up to 10 tracks then fires one request per track
+ *  - Cache: results stored by "artist|title" key to avoid re-fetching
+ *  - Throttled: max 1 request per 300ms to avoid hammering the backend
+ */
+const osuApi_1 = require("./osuApi");
+const OSU_BADGE_ATTR = "data-osu-checked";
+const cache = new Map(); // "artist|title" → has beatmap
+const queue = [];
+let processing = false;
+// ─── Badge ────────────────────────────────────────────────────────────────────
+function createBadge() {
+  const badge = document.createElement("span");
+  badge.className = "osu-tracklist-badge";
+  badge.title = "Beatmap available on osu!";
+  badge.style.cssText = `
+		display:inline-flex;align-items:center;justify-content:center;
+		margin-left:6px;vertical-align:middle;
+		width:16px;height:16px;flex-shrink:0;opacity:0.75;
+	`;
+  badge.innerHTML = `
+		<svg width="14" height="14" viewBox="0 0 128 128" fill="currentColor">
+			<circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" stroke-width="14"/>
+			<circle cx="64" cy="64" r="20" fill="currentColor"/>
+		</svg>
+	`;
+  return badge;
+}
+// ─── Queue processor ──────────────────────────────────────────────────────────
+function processQueue() {
+  return __awaiter(this, void 0, void 0, function* () {
+    if (processing || queue.length === 0) return;
+    processing = true;
+    while (queue.length > 0) {
+      const item = queue.shift();
+      // Already cached
+      if (cache.has(item.key)) {
+        if (cache.get(item.key)) injectBadge(item.el);
+        continue;
+      }
+      try {
+        const maps = yield (0, osuApi_1.searchBeatmapsets)(`${item.artist} ${item.title}`);
+        const found = maps.some(map => {
+          const t = item.title.toLowerCase();
+          const a = item.artist.toLowerCase();
+          return map.title.toLowerCase().includes(t) || t.includes(map.title.toLowerCase()) || map.artist.toLowerCase().includes(a) || a.includes(map.artist.toLowerCase());
+        });
+        cache.set(item.key, found);
+        if (found) injectBadge(item.el);
+      } catch (_a) {
+        // Backend unavailable, skip silently
+      }
+      // Throttle: 1 request per 300ms
+      yield new Promise(r => setTimeout(r, 300));
+    }
+    processing = false;
+  });
+}
+function injectBadge(titleEl) {
+  if (titleEl.querySelector(".osu-tracklist-badge")) return;
+  titleEl.appendChild(createBadge());
+}
+// ─── Row scanner ──────────────────────────────────────────────────────────────
+function scanRow(row) {
+  var _a, _b, _c, _d;
+  // Skip already processed rows
+  if (row.getAttribute(OSU_BADGE_ATTR)) return;
+  // Spotify tracklist row selectors (xpui)
+  const titleEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-medium, " + ".tracklist-row .tracklist-name, " + "[data-encore-id='text'].encore-text-body-medium");
+  if (!titleEl) return;
+  row.setAttribute(OSU_BADGE_ATTR, "1");
+  // Get artist from the row
+  const artistEl = row.querySelector("[data-testid='tracklist-row'] .encore-text-body-small a, " + ".tracklist-row .artists-albums a");
+  const title = (_b = (_a = titleEl.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : "";
+  const artist = (_d = (_c = artistEl === null || artistEl === void 0 ? void 0 : artistEl.textContent) === null || _c === void 0 ? void 0 : _c.trim()) !== null && _d !== void 0 ? _d : "";
+  if (!title) return;
+  const key = `${artist}|${title}`.toLowerCase();
+  if (cache.has(key)) {
+    if (cache.get(key)) injectBadge(titleEl);
+    return;
+  }
+  queue.push({
+    key,
+    artist,
+    title,
+    el: titleEl
+  });
+  processQueue();
+}
+// ─── MutationObserver ─────────────────────────────────────────────────────────
+let observer = null;
+function startTracklistWatcher() {
+  if (observer) return;
+  // Scan existing rows on page
+  document.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
+  observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach(node => {
+        if (!(node instanceof Element)) return;
+        // Direct row
+        if (node.matches("[data-testid='tracklist-row'], .tracklist-row")) {
+          scanRow(node);
+        }
+        // Rows inside added container
+        node.querySelectorAll("[data-testid='tracklist-row'], .tracklist-row").forEach(scanRow);
+      });
+    }
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+}
+exports.startTracklistWatcher = startTracklistWatcher;
+function stopTracklistWatcher() {
+  observer === null || observer === void 0 ? void 0 : observer.disconnect();
+  observer = null;
+}
+exports.stopTracklistWatcher = stopTracklistWatcher;
+},{"./osuApi":2}]},{},[1]);
