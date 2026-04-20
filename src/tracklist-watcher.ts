@@ -12,22 +12,36 @@ const resultCache = new Map<string, boolean>()
 const pendingQueue: Array<{ cacheKey: string; artist: string; title: string; titleEl: HTMLElement }> = []
 let isProcessing = false
 
-// osu! logo colors
-const OSU_PINK = "#FF66AA"
-
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
 function createBadge(): HTMLElement {
 	const badge = document.createElement("span")
 	badge.className = "osu-tracklist-badge"
 	badge.title = "Beatmap available on osu!"
-	badge.style.cssText = "display:inline-flex;align-items:center;margin-left:5px;vertical-align:middle;position:relative;top:-1px;"
-	// Official osu! logo: outer ring + inner circle in osu! pink
+	badge.style.cssText = [
+		"display:inline-flex",
+		"align-items:center",
+		"gap:3px",
+		"margin-left:6px",
+		"vertical-align:middle",
+		"position:relative",
+		"top:-1px",
+		"background:#FF66AA",
+		"border-radius:4px",
+		"padding:1px 5px",
+		"font-size:9px",
+		"font-weight:800",
+		"color:#fff",
+		"letter-spacing:0.02em",
+		"line-height:1.6",
+		"cursor:default",
+	].join(";")
 	badge.innerHTML = `
-		<svg width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
-			<circle cx="64" cy="64" r="60" fill="none" stroke="${OSU_PINK}" stroke-width="12"/>
-			<circle cx="64" cy="64" r="22" fill="${OSU_PINK}"/>
+		<svg width="9" height="9" viewBox="0 0 128 128" fill="white">
+			<circle cx="64" cy="64" r="56" fill="none" stroke="white" stroke-width="18"/>
+			<circle cx="64" cy="64" r="22" fill="white"/>
 		</svg>
+		osu!
 	`
 	return badge
 }
@@ -84,10 +98,7 @@ function scanRow(row: Element) {
 	)
 	if (!titleEl) return
 
-	const artistEl = row.querySelector<HTMLElement>(
-		".encore-text-body-small a"
-	)
-
+	const artistEl = row.querySelector<HTMLElement>(".encore-text-body-small a")
 	const title = titleEl.textContent?.trim() ?? ""
 	const artist = artistEl?.textContent?.trim() ?? ""
 	if (!title) return
